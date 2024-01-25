@@ -109,9 +109,7 @@ class BatchEngine:
             self._is_dag_yaml_flow = True
             self._program_language = self._flow.program_language
         else:
-            raise InvalidFlowFileError(
-                message_format="Unsupported flow file type: {flow_file}.", flow_file=flow_file
-            )
+            raise InvalidFlowFileError(message_format="Unsupported flow file type: {flow_file}.", flow_file=flow_file)
 
         self._connections = connections
         self._entry = entry
@@ -176,9 +174,11 @@ class BatchEngine:
                     # set batch input source from input mapping
                     OperationContext.get_instance().set_batch_input_source_from_inputs_mapping(inputs_mapping)
                     # if using eager flow, the self._flow is none, so we need to get inputs definition from executor
-                    inputs = self._flow.inputs if self._is_dag_yaml_flow \
-                        else self._executor_proxy.get_inputs_definition()
+                    inputs = (
+                        self._flow.inputs if self._is_dag_yaml_flow else self._executor_proxy.get_inputs_definition()
+                    )
                     # resolve input data from input dirs and apply inputs mapping
+                    max_lines_count = None
                     batch_input_processor = BatchInputsProcessor(self._working_dir, inputs, max_lines_count)
                     batch_inputs = batch_input_processor.process_batch_inputs(input_dirs, inputs_mapping)
                     # resolve output dir
