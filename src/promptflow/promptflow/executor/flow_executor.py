@@ -134,7 +134,7 @@ class FlowExecutor:
         self._cache_manager = cache_manager
         self._loaded_tools = loaded_tools
         self._working_dir = working_dir
-        self._line_timeout_sec = get_int_env_var("PF_LINE_TIMEOUT_SEC", line_timeout_sec)
+        self._line_timeout_sec = line_timeout_sec or get_int_env_var("PF_LINE_TIMEOUT_SEC")
         self._flow_file = flow_file
         try:
             self._tools_manager = ToolsManager(loaded_tools)
@@ -481,41 +481,6 @@ class FlowExecutor:
             result[idx] = value
         return result
 
-    def _exec_batch_with_process_pool(self, batch_inputs: List[dict], run_id, output_dir: Path) -> List[LineResult]:
-        nlines = len(batch_inputs)
-        line_number = [
-            batch_input["line_number"] for batch_input in batch_inputs if "line_number" in batch_input.keys()
-        ]
-        has_line_number = len(line_number) > 0
-        if not has_line_number:
-            line_number = [i for i in range(nlines)]
-
-        # TODO: Such scenario only occurs in legacy scenarios, will be deprecated.
-        has_duplicates = len(line_number) != len(set(line_number))
-        if has_duplicates:
-            line_number = [i for i in range(nlines)]
-
-        result_list = []
-
-        if self._flow_file is None:
-            error_message = "flow file is missing"
-            raise UnexpectedError(
-                message_format=("Unexpected error occurred while init FlowExecutor. Error details: {error_message}."),
-                error_message=error_message,
-            )
-
-        from ._line_execution_process_pool import LineExecutionProcessPool
-
-        with LineExecutionProcessPool(
-            self,
-            nlines,
-            run_id,
-            output_dir,
-        ) as pool:
-            result_list = pool.run(zip(line_number, batch_inputs))
-
-        return sorted(result_list, key=lambda r: r.run_info.index)
-
     def _exec_aggregation_with_bulk_results(
         self,
         batch_inputs: List[dict],
@@ -729,6 +694,7 @@ class FlowExecutor:
         validate_inputs: bool = True,
         node_concurrency=DEFAULT_CONCURRENCY_FLOW,
         allow_generator_output: bool = False,
+        line_timeout_sec: Optional[int] = None,
     ) -> LineResult:
         """Execute a single line of the flow.
 
@@ -746,10 +712,14 @@ class FlowExecutor:
         :type node_concurrency: int
         :param allow_generator_output: Whether to allow generator output.
         :type allow_generator_output: bool
+        :param line_timeout_sec: The maximum time to wait for a line of output.
+        :type line_timeout_sec: Optional[int]
         :return: The result of executing the line.
         :rtype: ~promptflow.executor._result.LineResult
         """
         self._node_concurrency = node_concurrency
+        # TODO: Pass line_timeout_sec to flow node scheduler instead of updating self._line_timeout_sec
+        self._line_timeout_sec = line_timeout_sec or self._line_timeout_sec
         inputs = apply_default_value_for_input(self._flow.inputs, inputs)
         # For flow run, validate inputs as default
         with self._run_tracker.node_log_manager:
