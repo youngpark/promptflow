@@ -117,6 +117,7 @@ class BatchEngine:
 
         # set it to True when the batch run is canceled
         self._is_canceled = False
+        bulk_logger.info("Initialized batch engine ......")
 
     def run(
         self,
@@ -145,6 +146,7 @@ class BatchEngine:
         :rtype: ~promptflow.batch._result.BatchResult
         """
         try:
+            bulk_logger.info("Start executing batch run ......")
             self._start_time = datetime.utcnow()
             with _change_working_dir(self._working_dir):
                 # create executor proxy instance according to the flow program language
@@ -178,6 +180,7 @@ class BatchEngine:
                     )
                     # resolve input data from input dirs and apply inputs mapping
                     max_lines_count = None
+                    bulk_logger.info("Start processing batch inputs ......")
                     batch_input_processor = BatchInputsProcessor(self._working_dir, inputs, max_lines_count)
                     batch_inputs = batch_input_processor.process_batch_inputs(input_dirs, inputs_mapping)
                     # resolve output dir
@@ -214,6 +217,7 @@ class BatchEngine:
         output_dir: Path = None,
         raise_on_line_failure: bool = False,
     ) -> BatchResult:
+        bulk_logger.info("Start executing batch run in task ......")
         # if the batch run is canceled, asyncio.CancelledError will be raised and no results will be returned,
         # so we pass empty line results list and aggr results and update them in _exec so that when the batch
         # run is canceled we can get the current completed line results and aggr results.
