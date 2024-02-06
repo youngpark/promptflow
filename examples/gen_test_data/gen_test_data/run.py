@@ -169,7 +169,15 @@ def run_cloud(
                 documents_folder=data_input, chunk_size=chunk_size
             ).outputs.document_node_output
         )
-        flow_node = load_component(flow_yml_path, params_override=[{"name": "gen_test_data_flow"}])(
+
+        from promptflow._utils.yaml_utils import dump_yaml, load_yaml
+        with open(flow_yml_path, "r", encoding="utf-8") as f:
+            data = load_yaml(f)
+
+        nodes = data["nodes"]
+        nodes[10]["inputs"]["model_or_deployment_name"] = "gpt-4-1106-preview"
+
+        flow_node = load_component(flow_yml_path, params_override=[{"name": "gen_test_data_flow", "nodes": nodes}])(
             data=data,
             text_chunk="${data.text_chunk}"
         )
@@ -296,7 +304,7 @@ if __name__ == "__main__":
                 documents_folder,
                 args.document_chunk_size,
                 document_nodes_file,
-                copied_flow_folder,
+                args.flow_folder,
                 args.subscription_id,
                 args.resource_group,
                 args.workspace_name,
@@ -310,11 +318,21 @@ if __name__ == "__main__":
                 should_skip_split_documents,
             )
         else:
+            from promptflow._utils.yaml_utils import dump_yaml, load_yaml
+
+            # with open(Path(args.flow_folder) / "flow.dag.yaml", "r", encoding="utf-8") as f:
+            #     data = load_yaml(f)
+            #
+            # nodes = data["nodes"]
+            #
+            # nodes[10]["inputs"]["model_or_deployment_name"] = "gpt-4-1106-preview"
+            # logger.info(nodes)
+
             run_local(
                 documents_folder,
                 args.document_chunk_size,
                 document_nodes_file,
-                copied_flow_folder,
+                args.flow_folder,
                 args.flow_batch_run_size,
                 output_folder,
                 should_skip_split_documents,

@@ -59,8 +59,8 @@ nodes:
     type: code
     path: generate_question.py
   inputs:
-    connection: ""
-    model_or_deployment_name: ""
+    connection: "open-ai-connection"
+    model_or_deployment_name: "gpt-4-1106-preview"
     context: ${validate_text_chunk.output.context}
     temperature: 0.2
     generate_question_prompt: ${generate_question_prompt.output}
@@ -71,8 +71,8 @@ nodes:
     type: code
     path: validate_question.py
   inputs:
-    connection: ""
-    model_or_deployment_name: ""
+    connection: "open-ai-connection"
+    model_or_deployment_name: "gpt-4-1106-preview"
     temperature: 0.2
     generated_question: ${generate_question.output}
     validate_question_prompt: ${validate_question_prompt.output}
@@ -83,11 +83,11 @@ nodes:
     type: code
     path: generate_suggested_answer.py
   inputs:
-    connection: ""
+    connection: "open-ai-connection"
     context: ${inputs.text_chunk}
     generate_suggested_answer_prompt: ${generate_suggested_answer_prompt.output}
     question: ${validate_question.output.question}
-    model_or_deployment_name: ""
+    model_or_deployment_name: "gpt-4-1106-preview"
     temperature: 0.2
   use_variants: false
 - name: generate_debug_info
@@ -113,8 +113,8 @@ nodes:
     type: code
     path: validate_suggested_answer.py
   inputs:
-    connection: ""
-    model_or_deployment_name: ""
+    connection: "open-ai-connection"
+    model_or_deployment_name: "gpt-4-1106-preview"
     suggested_answer: ${generate_suggested_answer.output}
     validate_suggested_answer_prompt: ${validate_suggested_answer_prompt.output}
     temperature: 0.2
@@ -124,7 +124,7 @@ nodes:
     type: code
     path: validate_text_chunk.py
   inputs:
-    connection: ""
+    connection: "open-ai-connection"
     score_text_chunk_prompt: ${score_text_chunk_prompt.output}
     context: ${inputs.text_chunk}
     score_threshold: 4
