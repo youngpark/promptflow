@@ -6,7 +6,12 @@ from fastapi import APIRouter
 
 from promptflow._utils.context_utils import _change_working_dir
 from promptflow._utils.logger_utils import service_logger
-from promptflow.executor._service.contracts.execution_request import FlowExecutionRequest, NodeExecutionRequest
+from promptflow.executor._service.contracts.execution_request import (
+    CancelExecutionRequest,
+    FlowExecutionRequest,
+    NodeExecutionRequest,
+)
+from promptflow.executor._service.utils.process_manager import ProcessManager
 from promptflow.executor._service.utils.process_utils import invoke_sync_function_in_process
 from promptflow.executor._service.utils.service_utils import (
     get_log_context,
@@ -29,7 +34,7 @@ async def flow_execution(request: FlowExecutionRequest):
         )
         try:
             result = await invoke_sync_function_in_process(
-                flow_test, args=(request,), context_dict=request.operation_context
+                flow_test, args=(request,), run_id=request.run_id, context_dict=request.operation_context
             )
             service_logger.info(f"Completed flow execution request, flow run id: {request.run_id}.")
             return result
@@ -51,7 +56,7 @@ async def node_execution(request: NodeExecutionRequest):
         )
         try:
             result = await invoke_sync_function_in_process(
-                single_node_run, args=(request,), context_dict=request.operation_context
+                single_node_run, args=(request,), run_id=request.run_id, context_dict=request.operation_context
             )
             service_logger.info(f"Completed node execution request, node name: {request.node_name}.")
             return result
@@ -61,6 +66,11 @@ async def node_execution(request: NodeExecutionRequest):
                 f"Failed to execute node, node name: {request.node_name}. Error: {error_type_and_message}"
             )
             raise ex
+
+
+@router.post("/cancel")
+async def cancel_execution(request: CancelExecutionRequest):
+    ProcessManager().end_process(request.run_id)
 
 
 def flow_test(request: FlowExecutionRequest):
