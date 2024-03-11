@@ -18,7 +18,7 @@ from promptflow._sdk.entities._flow import Flow
 from promptflow._sdk.operations._flow_operations import FlowOperations
 from promptflow._utils.dataclass_serializer import convert_eager_flow_output_to_dict
 from promptflow._utils.logger_utils import LoggerFactory
-from promptflow._utils.multimedia_utils import convert_multimedia_data_to_base64, persist_multimedia_data
+from promptflow._utils.multimedia_utils import MultimediaProcessor
 from promptflow.core._connection import _Connection
 from promptflow.core._serving._errors import UnexpectedConnectionProviderReturn, UnsupportedConnectionProvider
 from promptflow.core._serving.flow_result import FlowResult
@@ -74,6 +74,7 @@ class FlowInvoker:
         self._init_connections(connection_provider)
         self._init_executor()
         self._dump_file_prefix = "chat" if self._is_chat_flow else "flow"
+        MultimediaProcessor.create(self.flow.message_format)
 
     def _init_connections(self, connection_provider):
         self._is_chat_flow, _, _ = FlowOperations._is_chat_flow(self.flow)
@@ -189,13 +190,14 @@ class FlowInvoker:
 
     def _convert_multimedia_data_to_base64(self, output_dict):
         resolved_outputs = {
-            k: convert_multimedia_data_to_base64(v, with_type=True, dict_type=True) for k, v in output_dict.items()
+            k: MultimediaProcessor.get_instance().convert_multimedia_data_to_base64_dict(v)
+            for k, v in output_dict.items()
         }
         return resolved_outputs
 
     def _dump_invoke_result(self, invoke_result):
         if self._dump_to:
-            invoke_result.output = persist_multimedia_data(
+            invoke_result.output = MultimediaProcessor.get_instance().persist_multimedia_data(
                 invoke_result.output, base_dir=self._dump_to, sub_dir=Path(".promptflow/output")
             )
             dump_flow_result(flow_folder=self._dump_to, flow_result=invoke_result, prefix=self._dump_file_prefix)
