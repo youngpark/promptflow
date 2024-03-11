@@ -22,6 +22,7 @@ from promptflow._utils.execution_utils import (
     handle_line_failures,
 )
 from promptflow._utils.logger_utils import bulk_logger
+from promptflow._utils.multimedia_utils import BaseMultimediaProcessor, MultimediaProcessor
 from promptflow._utils.utils import (
     copy_file_except,
     dump_list_to_jsonl,
@@ -45,6 +46,7 @@ from promptflow.executor._line_execution_process_pool import signal_handler
 from promptflow.executor._result import AggregationResult, LineResult
 from promptflow.executor.flow_validator import FlowValidator
 from promptflow.storage import AbstractBatchRunStorage, AbstractRunStorage
+from promptflow.storage._run_storage import DefaultRunStorage
 
 OUTPUT_FILE_NAME = "output.jsonl"
 DEFAULT_CONCURRENCY = 10
@@ -114,8 +116,17 @@ class BatchEngine:
             self._flow = Flow.from_yaml(flow_file, working_dir=self._working_dir)
             FlowValidator.ensure_flow_valid_in_batch_mode(self._flow)
 
+            # eager flow does not support multimedia contract currently
+
+        self._multimedia_processor = (
+            MultimediaProcessor.create(self._flow.message_format)
+            if not self._is_eager_flow
+            else BaseMultimediaProcessor()
+        )
+
         self._connections = connections
-        self._storage = storage
+        self._storage = storage if storage else DefaultRunStorage(base_dir=self._working_dir)
+        self._storage.multimedia_processor = self._multimedia_processor
         self._kwargs = kwargs
 
         self._batch_timeout_sec = batch_timeout_sec or get_int_env_var("PF_BATCH_TIMEOUT_SEC")
@@ -189,12 +200,14 @@ class BatchEngine:
                     OperationContext.get_instance().set_batch_input_source_from_inputs_mapping(inputs_mapping)
                     # if using eager flow, the self._flow is none, so we need to get inputs definition from executor
                     inputs = self._executor_proxy.get_inputs_definition() if self._is_eager_flow else self._flow.inputs
+
                     # resolve input data from input dirs and apply inputs mapping
-                    batch_input_processor = BatchInputsProcessor(self._working_dir, inputs, max_lines_count)
+                    batch_input_processor = BatchInputsProcessor(
+                        self._working_dir, inputs, max_lines_count, multimedia_processor=self._multimedia_processor
+                    )
                     batch_inputs = batch_input_processor.process_batch_inputs(input_dirs, inputs_mapping)
                     # resolve output dir
                     output_dir = resolve_dir_to_absolute(self._working_dir, output_dir)
-
                     previous_run_results = None
                     if resume_from_run_storage and resume_from_run_output_dir:
                         previous_run_results = self._copy_previous_run_result(

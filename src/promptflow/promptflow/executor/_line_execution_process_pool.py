@@ -22,7 +22,7 @@ from promptflow._core.run_tracker import RunTracker
 from promptflow._utils.dataclass_serializer import convert_eager_flow_output_to_dict
 from promptflow._utils.exception_utils import ExceptionPresenter
 from promptflow._utils.logger_utils import bulk_logger
-from promptflow._utils.multimedia_utils import _process_recursively, persist_multimedia_data
+from promptflow._utils.multimedia_utils import _process_recursively
 from promptflow._utils.thread_utils import RepeatLogTimer
 from promptflow._utils.utils import log_progress, set_context
 from promptflow.contracts.multimedia import Image
@@ -136,6 +136,7 @@ class LineExecutionProcessPool:
         # Will set to True if the batch run is timeouted.
         self._is_timeout = False
         self._worker_count = self._determine_worker_count(worker_count)
+        self._multimedia_processor = flow_executor.multimedia_processor
 
     def __enter__(self):
         manager = Manager()
@@ -397,7 +398,7 @@ class LineExecutionProcessPool:
         self._process_multimedia_in_flow_run(result.run_info)
         for node_name, node_run_info in result.node_run_infos.items():
             result.node_run_infos[node_name] = self._process_multimedia_in_node_run(node_run_info)
-        result.output = persist_multimedia_data(result.output, self._output_dir)
+        result.output = self._multimedia_processor.persist_multimedia_data(result.output, self._output_dir)
         return result
 
     def _process_multimedia_in_run_info(self, run_info: Union[FlowRunInfo, NodeRunInfo]):

@@ -10,6 +10,7 @@ from promptflow._core.run_tracker import RunTracker
 from promptflow._core.tool_meta_generator import PythonLoadError
 from promptflow._utils.dataclass_serializer import convert_eager_flow_output_to_dict
 from promptflow._utils.logger_utils import logger
+from promptflow._utils.multimedia_utils import BaseMultimediaProcessor
 from promptflow._utils.tool_utils import function_to_interface
 from promptflow._utils.yaml_utils import load_yaml
 from promptflow.contracts.flow import Flow
@@ -41,6 +42,7 @@ class ScriptExecutor(FlowExecutor):
         self._flow_id = "default_flow_id"
         self._log_interval = 60
         self._line_timeout_sec = 600
+        self._multimedia_processor = BaseMultimediaProcessor()
 
     def exec_line(
         self,

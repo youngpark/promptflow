@@ -4,7 +4,7 @@ from tempfile import mkdtemp
 
 import pytest
 
-from promptflow._utils.multimedia_utils import MIME_PATTERN, _create_image_from_file, _is_url, is_multimedia_dict
+from promptflow._utils.multimedia_utils import MIME_PATTERN, BaseMultimediaProcessor, ImageProcessor
 from promptflow.batch._batch_engine import OUTPUT_FILE_NAME, BatchEngine
 from promptflow.batch._result import BatchResult
 from promptflow.contracts.multimedia import Image
@@ -30,7 +30,7 @@ IMAGE_URL = (
 
 def get_test_cases_for_simple_input(flow_folder):
     working_dir = get_flow_folder(flow_folder)
-    image = _create_image_from_file(working_dir / "logo.jpg")
+    image = ImageProcessor.create_image_from_file(working_dir / "logo.jpg")
     inputs = [
         {"data:image/jpg;path": str(working_dir / "logo.jpg")},
         {"data:image/jpg;base64": image.to_base64()},
@@ -44,8 +44,8 @@ def get_test_cases_for_simple_input(flow_folder):
 
 def get_test_cases_for_composite_input(flow_folder):
     working_dir = get_flow_folder(flow_folder)
-    image_1 = _create_image_from_file(working_dir / "logo.jpg")
-    image_2 = _create_image_from_file(working_dir / "logo_2.png")
+    image_1 = ImageProcessor.create_image_from_file(working_dir / "logo.jpg")
+    image_2 = ImageProcessor.create_image_from_file(working_dir / "logo_2.png")
     inputs = [
         [
             {"data:image/jpg;path": str(working_dir / "logo.jpg")},
@@ -96,10 +96,10 @@ def contain_image_reference(value, parent_path="temp"):
     if isinstance(value, list):
         return any(contain_image_reference(item, parent_path) for item in value)
     if isinstance(value, dict):
-        if is_multimedia_dict(value):
+        if BaseMultimediaProcessor.is_multimedia_dict(value):
             v = list(value.values())[0]
             assert isinstance(v, str)
-            assert _is_url(v) or str(Path(v).parent) == parent_path
+            assert ImageProcessor.is_url(v) or str(Path(v).parent) == parent_path
             return True
         return any(contain_image_reference(v, parent_path) for v in value.values())
     return False
@@ -109,7 +109,7 @@ def contain_image_object(value):
     if isinstance(value, list):
         return any(contain_image_object(item) for item in value)
     elif isinstance(value, dict):
-        assert not is_multimedia_dict(value)
+        assert not BaseMultimediaProcessor.is_multimedia_dict(value)
         return any(contain_image_object(v) for v in value.values())
     else:
         return isinstance(value, Image)
