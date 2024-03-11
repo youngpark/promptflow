@@ -17,7 +17,7 @@ from promptflow.contracts.flow import FlowInputDefinition
 from promptflow.contracts.multimedia import Image, PFBytes, Text
 from promptflow.contracts.tool import ValueType
 
-from ...utils import DATA_ROOT
+from ...utils import DATA_ROOT, FLOW_ROOT, get_flow_folder
 
 TEST_IMAGE_PATH = DATA_ROOT / "logo.jpg"
 
@@ -140,6 +140,20 @@ class TestMultimediaProcessor:
     )
     def test_create(self, message_format_type, processor_class):
         processor = MultimediaProcessor.create(message_format_type)
+        assert isinstance(processor, processor_class)
+
+    @pytest.mark.parametrize(
+        "flow_folder_name, flow_file, processor_class",
+        [
+            ("chat_flow_with_openai_vision_image", "flow.dag.yaml", OpenaiVisionMultimediaProcessor),
+            ("chat_flow_with_image", "flow.dag.yaml", BaseMultimediaProcessor),
+            ("chat_flow_with_openai_vision_image", "mock_chat.py", BaseMultimediaProcessor),
+            (None, None, BaseMultimediaProcessor),
+        ],
+    )
+    def test_create_from_yaml(self, flow_folder_name, flow_file, processor_class):
+        flow_folder = get_flow_folder(flow_folder_name, FLOW_ROOT) if flow_folder_name else None
+        processor = MultimediaProcessor.create_from_yaml(flow_file, working_dir=flow_folder)
         assert isinstance(processor, processor_class)
 
     def test_convert_multimedia_date_to_base64(self):

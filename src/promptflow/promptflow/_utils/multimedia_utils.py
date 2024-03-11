@@ -5,12 +5,13 @@ import uuid
 from abc import ABC, abstractmethod, abstractstaticmethod
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 from urllib.parse import urlparse
 
 import requests
 
 from promptflow._utils._errors import InvalidImageInput, LoadMultimediaDataError
+from promptflow._utils.yaml_utils import load_yaml
 from promptflow.contracts.flow import FlowInputDefinition
 from promptflow.contracts.multimedia import Image, PFBytes, Text
 from promptflow.contracts.tool import ValueType
@@ -141,6 +142,16 @@ class MultimediaProcessor(ABC):
     def create(message_format_type: str = MessageFormatType.BASIC):
         if message_format_type and message_format_type.lower() == MessageFormatType.OPENAI_VISION:
             return OpenaiVisionMultimediaProcessor()
+        return BaseMultimediaProcessor()
+
+    @staticmethod
+    def create_from_yaml(flow_file: Path, working_dir: Optional[Path] = None):
+        if flow_file and Path(flow_file).suffix.lower() in [".yaml", ".yml"]:
+            flow_file = working_dir / flow_file if working_dir else flow_file
+            with open(flow_file, "r", encoding="utf-8") as fin:
+                flow_dag = load_yaml(fin)
+            message_format_type = flow_dag.get("message_format", MessageFormatType.BASIC)
+            return MultimediaProcessor.create(message_format_type)
         return BaseMultimediaProcessor()
 
     def create_image(self, value: any):
@@ -426,3 +437,24 @@ class OpenaiVisionMultimediaProcessor(MultimediaProcessor):
             Text: Text.serialize,
         }
         return _process_recursively(value, process_funcs=serialization_funcs, inplace=inplace)
+
+
+# TODO：Runtime relies on these old interfaces and will be removed in the future.
+def persist_multimedia_data(
+    value: Any, base_dir: Path, sub_dir: Path = None, multimedia_processor: MultimediaProcessor = None
+):
+    if multimedia_processor:
+        return multimedia_processor.persist_multimedia_data(value, base_dir, sub_dir)
+    return BaseMultimediaProcessor().persist_multimedia_data(value, base_dir, sub_dir)
+
+
+def load_multimedia_data_recursively(value: Any, multimedia_processor: MultimediaProcessor = None):
+    if multimedia_processor:
+        return multimedia_processor.load_multimedia_data_recursively(value)
+    return BaseMultimediaProcessor().load_multimedia_data_recursively(value)
+
+
+def resolve_multimedia_data_recursively(input_dir: Path, value: Any, multimedia_processor: MultimediaProcessor = None):
+    if multimedia_processor:
+        return multimedia_processor.resolve_multimedia_data_recursively(input_dir, value)
+    return BaseMultimediaProcessor().resolve_multimedia_data_recursively(input_dir, value)
