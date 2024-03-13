@@ -16,7 +16,7 @@ from logging import INFO
 from multiprocessing import Manager, Queue
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import psutil
 
@@ -633,11 +633,7 @@ def _process_wrapper(
 
     setup_exporter_from_environ()
 
-    if log_context_initialization_func:
-        with log_context_initialization_func():
-            _exec_line_for_queue(executor_creation_func, input_queue, output_queue)
-    else:
-        _exec_line_for_queue(executor_creation_func, input_queue, output_queue)
+    _exec_line_for_queue(executor_creation_func, input_queue, output_queue, log_context_initialization_func)
 
 
 def signal_handler(signum, frame):
@@ -653,7 +649,12 @@ def signal_handler(signum, frame):
         sys.exit(1)
 
 
-def _exec_line_for_queue(executor_creation_func, input_queue: Queue, output_queue: Queue):
+def _exec_line_for_queue(
+    executor_creation_func,
+    input_queue: Queue,
+    output_queue: Queue,
+    log_context_initialization_func: Optional[Callable] = None,
+):
     run_storage = QueueRunStorage(output_queue)
     executor: FlowExecutor = executor_creation_func(storage=run_storage)
 
@@ -676,15 +677,28 @@ def _exec_line_for_queue(executor_creation_func, input_queue: Queue, output_queu
                 # If found the terminate signal, exit the process.
                 break
             run_id, line_number, inputs, line_timeout_sec = data
-            result = _exec_line(
-                executor=executor,
-                output_queue=output_queue,
-                inputs=inputs,
-                run_id=run_id,
-                index=line_number,
-                line_timeout_sec=line_timeout_sec,
-            )
-            output_queue.put(result)
+            # Set logger context for each line execution. Because we also need to record line logs in batch run.
+            if log_context_initialization_func:
+                with log_context_initialization_func(line_number=line_number):
+                    result = _exec_line(
+                        executor=executor,
+                        output_queue=output_queue,
+                        inputs=inputs,
+                        run_id=run_id,
+                        index=line_number,
+                        line_timeout_sec=line_timeout_sec,
+                    )
+                    output_queue.put(result)
+            else:
+                result = _exec_line(
+                    executor=executor,
+                    output_queue=output_queue,
+                    inputs=inputs,
+                    run_id=run_id,
+                    index=line_number,
+                    line_timeout_sec=line_timeout_sec,
+                )
+                output_queue.put(result)
         except queue.Empty:
             # Do nothing until the input_queue have content or process is killed
             # TODO: Exit the process more gracefully.
