@@ -13,7 +13,7 @@ from colorama import Fore, init
 from promptflow._internal import ConnectionManager
 from promptflow._sdk._constants import PROMPT_FLOW_DIR_NAME
 from promptflow._sdk._utils import dump_flow_result, parse_variant
-from promptflow._sdk.entities._flow import Flow, FlowBase, FlowContext
+from promptflow._sdk.entities._flow import Flow, FlowContext
 from promptflow._sdk.operations._local_storage_operations import LoggerOperations
 from promptflow._utils.context_utils import _change_working_dir
 from promptflow._utils.exception_utils import ErrorResponse
@@ -160,30 +160,6 @@ class TestSubmitter:
                 self._node_variant = None
 
     @classmethod
-    def _resolve_connections(cls, flow: FlowBase, client):
-        if flow.language == FlowLanguage.CSharp:
-            # TODO: check if this is a shared logic
-            if isinstance(flow, FlexFlow):
-                # connection overrides are not supported for eager flow for now
-                return {}
-
-            # TODO: is it possible that we resolve connections after executor proxy is created?
-            from promptflow.batch import CSharpExecutorProxy
-
-            return SubmitterHelper.resolve_used_connections(
-                flow=flow,
-                tools_meta=CSharpExecutorProxy.generate_flow_tools_json(
-                    flow_file=flow.flow_dag_path,
-                    working_dir=flow.code,
-                ),
-                client=client,
-            )
-        if flow.language == FlowLanguage.Python:
-            # TODO: test submitter should not interact with dataplane flow directly
-            return SubmitterHelper.resolve_connections(flow=flow, client=client)
-        raise UserErrorException(f"Unsupported flow language {flow.language}")
-
-    @classmethod
     def _resolve_environment_variables(cls, environment_variable_overrides, flow: Flow, client):
         return SubmitterHelper.load_and_resolve_environment_variables(
             flow=flow, environment_variable_overrides=environment_variable_overrides, client=client
@@ -274,7 +250,7 @@ class TestSubmitter:
             self._relative_flow_output_path = output_sub / "output"
 
             # use flow instead of origin_flow here, as flow can be incomplete before resolving additional includes
-            self._connections = connections or self._resolve_connections(
+            self._connections = connections or SubmitterHelper.resolve_connections(
                 self.flow,
                 self._client,
             )

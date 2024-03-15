@@ -7,13 +7,14 @@ import json
 from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
-from typing import Any, Dict, Mapping, NoReturn, Optional
+from typing import Any, Dict, List, Mapping, NoReturn, Optional
 
 import httpx
 
 from promptflow._constants import DEFAULT_ENCODING, LINE_TIMEOUT_SEC
 from promptflow._core._errors import MetaFileNotFound, MetaFileReadError, NotSupported, UnexpectedError
 from promptflow._sdk._constants import (
+    DAG_FILE_NAME,
     FLOW_META_JSON,
     FLOW_META_JSON_GEN_TIMEOUT,
     FLOW_TOOLS_JSON,
@@ -113,6 +114,11 @@ class AbstractExecutorProxy:
         timeout: int = FLOW_META_JSON_GEN_TIMEOUT,
         load_in_subprocess: bool = True,
     ) -> Dict[str, Any]:
+        raise NotImplementedError()
+
+    @classmethod
+    def get_used_connection_names(cls, flow_file: Path, working_dir: Path) -> List[str]:
+        """Get the used connection names in the flow."""
         raise NotImplementedError()
 
     def get_inputs_definition(self):
@@ -235,10 +241,6 @@ class APIBasedExecutorProxy(AbstractExecutorProxy):
 
     # endregion
 
-    def _get_flow_meta(self) -> dict:
-        flow_meta_json_path = self.working_dir / PROMPT_FLOW_DIR_NAME / FLOW_META_JSON
-        return self._read_json_content(flow_meta_json_path, "meta of flow")
-
     @classmethod
     def dump_metadata(cls, flow_file: Path, working_dir: Path) -> NoReturn:
         # In abstract class, dump_metadata may redirect to generate_tools_json and generate_flow_json
@@ -253,7 +255,11 @@ class APIBasedExecutorProxy(AbstractExecutorProxy):
         """Get the inputs definition of an eager flow"""
         from promptflow.contracts.flow import FlowInputDefinition
 
-        flow_meta = self._get_flow_meta()
+        flow_meta = self.generate_flow_json(
+            flow_file=self.working_dir / DAG_FILE_NAME,
+            working_dir=self.working_dir,
+            dump=False,
+        )
         inputs = {}
         for key, value in flow_meta.get("inputs", {}).items():
             # TODO: update this after we determine whether to accept list here or now
@@ -320,7 +326,7 @@ class APIBasedExecutorProxy(AbstractExecutorProxy):
     @property
     def chat_output_name(self) -> Optional[str]:
         """The name of the chat output in the line result. Return None if the bonded flow is not a chat flow."""
-        # TODO: implement this based on _get_flow_meta
+        # TODO: implement this based on _generate_flow_json
         return None
 
     def exec_line(

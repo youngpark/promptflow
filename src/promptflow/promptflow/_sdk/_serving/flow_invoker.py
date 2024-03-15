@@ -10,9 +10,9 @@ from promptflow._sdk._load_functions import load_flow
 from promptflow._sdk._serving._errors import UnexpectedConnectionProviderReturn, UnsupportedConnectionProvider
 from promptflow._sdk._serving.flow_result import FlowResult
 from promptflow._sdk._serving.utils import validate_request_data
+from promptflow._sdk._submitter.utils import SubmitterHelper
 from promptflow._sdk._utils import (
     dump_flow_result,
-    get_local_connections_from_executable,
     override_connection_config_with_environment_variable,
     resolve_connections_environment_variable_reference,
     update_environment_variables_with_connections,
@@ -83,8 +83,8 @@ class FlowInvoker:
             connections_to_ignore = list(self.connections.keys())
             connections_to_ignore.extend(self.connections_name_overrides.keys())
             # Note: The connection here could be local or workspace, depends on the connection.provider in pf.yaml.
-            connections = get_local_connections_from_executable(
-                executable=self.flow,
+            connections = SubmitterHelper.resolve_connections(
+                flow=self.flow_entity,
                 client=PFClient(config=config, credential=self._credential),
                 connections_to_ignore=connections_to_ignore,
                 # fetch connections with name override

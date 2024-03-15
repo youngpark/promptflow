@@ -134,3 +134,12 @@ class PythonExecutorProxy(AbstractExecutorProxy):
             timeout=timeout,
             used_packages_only=True,
         )
+
+    @classmethod
+    def get_used_connection_names(cls, flow_file: Path, working_dir: Path) -> List[str]:
+        from promptflow._utils.context_utils import _change_working_dir
+        from promptflow.contracts.flow import Flow as ExecutableFlow
+
+        with _change_working_dir(working_dir):
+            executable = ExecutableFlow.from_yaml(flow_file=flow_file, working_dir=working_dir)
+        return executable.get_connection_names()

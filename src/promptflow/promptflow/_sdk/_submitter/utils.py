@@ -24,7 +24,7 @@ import pydash
 from dotenv import load_dotenv
 from pydash import objects
 
-from promptflow._constants import STREAMING_ANIMATION_TIME
+from promptflow._constants import STREAMING_ANIMATION_TIME, FlowLanguage
 from promptflow._sdk._constants import (
     ALL_CONNECTION_TYPES,
     DEFAULT_VAR_ID,
@@ -41,15 +41,14 @@ from promptflow._sdk._errors import InvalidFlowError, RunOperationError
 from promptflow._sdk._load_functions import load_flow
 from promptflow._sdk._utils import (
     _merge_local_code_and_additional_includes,
-    get_local_connections_from_executable,
     get_used_connection_names_from_dict,
     update_dict_value_with_connections,
 )
 from promptflow._sdk.entities._eager_flow import FlexFlow
 from promptflow._sdk.entities._flow import Flow
-from promptflow._utils.context_utils import _change_working_dir
 from promptflow._utils.flow_utils import dump_flow_dag, load_flow_dag
 from promptflow._utils.logger_utils import FileHandler, get_cli_sdk_logger
+from promptflow.batch._executor_proxy_factory import ExecutorProxyFactory
 from promptflow.contracts.flow import Flow as ExecutableFlow
 
 logger = get_cli_sdk_logger()
@@ -121,7 +120,12 @@ def overwrite_connections(flow_dag: dict, connections: dict, working_dir: PathLi
             try:
                 connection = connection_dict.get(ConnectionFields.CONNECTION)
                 if connection:
-                    node[ConnectionFields.CONNECTION] = connection
+                    # TODO: refactor this
+                    if executable_flow.program_language == FlowLanguage.CSharp:
+                        # connection of llm node is in inputs for csharp
+                        node[INPUTS][ConnectionFields.CONNECTION] = connection
+                    else:
+                        node[ConnectionFields.CONNECTION] = connection
                 deploy_name = connection_dict.get(ConnectionFields.DEPLOYMENT_NAME)
                 if deploy_name:
                     node[INPUTS][ConnectionFields.DEPLOYMENT_NAME] = deploy_name
@@ -206,38 +210,36 @@ class SubmitterHelper:
             load_dotenv(environment_variables)
 
     @staticmethod
-    def resolve_connections(flow: Flow, client=None, connections_to_ignore=None) -> dict:
-        # TODO 2856400: use resolve_used_connections instead of this function to avoid using executable in control-plane
+    def resolve_connections(
+        flow: Flow, client=None, *, connections_to_ignore=None, connections_to_add: List[str] = None
+    ) -> dict:
         from promptflow._sdk.entities._eager_flow import FlexFlow
-
-        from .._pf_client import PFClient
 
         if isinstance(flow, FlexFlow):
             # TODO(2898247): support prompt flow management connection for eager flow
             return {}
 
-        client = client or PFClient()
-        with _change_working_dir(flow.code):
-            executable = ExecutableFlow.from_yaml(flow_file=flow.path, working_dir=flow.code)
-        executable.name = str(Path(flow.code).stem)
-
-        return get_local_connections_from_executable(
-            executable=executable, client=client, connections_to_ignore=connections_to_ignore
-        )
-
-    @staticmethod
-    def resolve_used_connections(flow: Flow, tools_meta: dict, client, connections_to_ignore=None) -> dict:
         from .._pf_client import PFClient
 
         client = client or PFClient()
-        connection_names = SubmitterHelper.get_used_connection_names(tools_meta=tools_meta, flow_dag=flow._data)
-        connections_to_ignore = connections_to_ignore or []
-        result = {}
-        for n in connection_names:
-            if n not in connections_to_ignore:
-                conn = client.connections.get(name=n, with_secrets=True)
-                result[n] = conn._to_execution_connection_dict()
-        return result
+
+        connection_names = (
+            ExecutorProxyFactory()
+            .get_executor_proxy_cls(flow.language)
+            .get_used_connection_names(
+                flow_file=flow.flow_dag_path,
+                working_dir=flow.code,
+            )
+        )
+
+        if connections_to_add:
+            connection_names.extend(connections_to_add)
+
+        return SubmitterHelper.resolve_connection_names(
+            connection_names=connection_names,
+            client=client,
+            connections_to_ignore=connections_to_ignore,
+        )
 
     @staticmethod
     def get_used_connection_names(tools_meta: dict, flow_dag: dict):
@@ -283,9 +285,11 @@ class SubmitterHelper:
         update_dict_value_with_connections(built_connections=connections, connection_dict=environment_variables)
 
     @staticmethod
-    def resolve_connection_names(connection_names, client, raise_error=False):
+    def resolve_connection_names(connection_names, client, *, raise_error=False, connections_to_ignore=None):
         result = {}
         for n in connection_names:
+            if connections_to_ignore and n in connections_to_ignore:
+                continue
             try:
                 conn = client.connections.get(name=n, with_secrets=True)
                 result[n] = conn._to_execution_connection_dict()

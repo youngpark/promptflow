@@ -113,11 +113,9 @@ class RunSubmitter:
             ExecutorProxyFactory().get_executor_proxy_cls(flow.language).dump_metadata(
                 flow_file=Path(flow.path), working_dir=Path(flow.code)
             )
-            # TODO: shall we resolve connections here?
-            connections = []
-        else:
-            with _change_working_dir(flow.code):
-                connections = SubmitterHelper.resolve_connections(flow=flow)
+
+        with _change_working_dir(flow.code):
+            connections = SubmitterHelper.resolve_connections(flow=flow)
         column_mapping = run.column_mapping
         # resolve environment variables
         run.environment_variables = SubmitterHelper.load_and_resolve_environment_variables(
